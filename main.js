@@ -1,4 +1,3 @@
-
 const express = require("express");
 const session = require('express-session');
 const axios = require('axios');
@@ -29,7 +28,7 @@ const states_of_india = [
 ];
 
 const disabilities = [
-    'Blindness', 'Low Vision', 'Leprosy Cured persons', 'Hearing Impairment (deaf and hard of hearing)', 'Locomotor Disability',
+    'Blindness', 'Blind','Low Vision', 'visual impairment', 'visually impaired' ,'Leprosy Cured persons', 'Hearing Impairment (deaf and hard of hearing)', 'Locomotor Disability',
     'Dwarfism', 'Intellectual Disability', 'Mental Illness', 'Autism Spectrum Disorder', 'Cerebral Palsy', 'Muscular Dystrophy',
     'Chronic Neurological conditions', 'Specific Learning Disabilities', 'Multiple Sclerosis', 'Speech and Language disability',
     'Thalassemia', 'Hemophilia', 'Sickle Cell disease', 'Multiple Disabilities including deafblindness', 'Acid Attack victim',
@@ -109,24 +108,30 @@ client.on('message_create', async (message) => {
         } else if (sessionData.user_data.length === 0) {
             const [state, stateRating] = closestMatch(msg, states_of_india);
             console.log("second")
-            if (stateRating >= 0.8) {
+            if (stateRating >= 0.6) {
                 sessionData.user_data.push(state);
-                client.sendMessage(message.from, "Thank you for providing your state. Now, please enter your gender.");
+                client.sendMessage(message.from, `Thank you for providing your state (${state}). Now, please enter your gender.`);
             } else {
                 client.sendMessage(message.from, "This is not a valid state name. Please try again.");
             }
         } else if (sessionData.user_data.length === 1) {
             if (['male', 'female', 'transgender'].includes(msg)) {
                 sessionData.user_data.push(msg.charAt(0).toUpperCase() + msg.slice(1));
-                client.sendMessage(message.from, "Thank you for providing your gender. Now, please give the name of the disability.");
+                client.sendMessage(message.from, `Thank you for providing your gender (${msg.charAt(0).toUpperCase()+msg.slice(1)}). Now, please give the name of the disability.`);
             } else {
                 client.sendMessage(message.from, "Gender is not correct. Please give it again.");
             }
         } else if (sessionData.user_data.length === 2) {
+            
             const [disability, disabilityRating] = closestMatch(msg, disabilities);
-            if (disabilityRating >= 0.7) {
-                sessionData.user_data.push(disability);
-                client.sendMessage(message.from, "Now please provide how much percent disabilities you have.");
+            if (disabilityRating >= 0.6) {
+                if (disability=='Blind' || disability=='visually impaired' || disability=='visual impairment' ){
+                    sessionData.user_data.push("Blindness")
+                }
+                else{
+                    sessionData.user_data.push(disability);
+                }
+                client.sendMessage(message.from, `Thank you for providing the Disability (${disability}). Now please provide how much percent disabilities you have.`);
             } else {
                 client.sendMessage(message.from, "Disability name is not correct. Please give it again.");
             }
@@ -144,7 +149,7 @@ client.on('message_create', async (message) => {
             if (!isNaN(income)) {
                 sessionData.user_data.push(income);
                 try {
-                    const response = await axios.post('http://127.0.0.1:5000/sms', {
+                    const response = await axios.post('http://0.0.0.0:8000/sms', {
                         user_details: sessionData.user_data
                     });
 
@@ -163,6 +168,7 @@ client.on('message_create', async (message) => {
                     sessionData.greeted = false;
                     sessionData.user_data=[];
                 } catch (error) {
+                     sessionData.user_data=[];
                     console.error('Error:', error);
                 }
 
