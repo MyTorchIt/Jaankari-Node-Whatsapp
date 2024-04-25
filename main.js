@@ -5,20 +5,14 @@ const levenshtein = require('fastest-levenshtein');
 const qrcode = require('qrcode');
 const { Client } = require('whatsapp-web.js');
 const fs = require('fs');
-
-
 const path = require('path');
-
-
 const app = express();
-
 // Session middleware setup
 app.use(session({
     secret: 'azbykkfgfgk',
     resave: false,
     saveUninitialized: true
 }));
-
 const states_of_india = [
     'andhra pradesh', 'arunachal pradesh', 'assam', 'bihar', 'chhattisgarh', 'goa', 'gujarat', 'haryana',
     'himachal pradesh', 'jammu and kashmir', 'jharkhand', 'karnataka', 'kerala', 'madhya pradesh', 'maharashtra',
@@ -26,7 +20,6 @@ const states_of_india = [
     'tripura', 'uttar pradesh', 'uttarakhand', 'west bengal', 'andaman and nicobar islands', 'chandigarh', 'dadra and nagar haveli',
     'daman and diu', 'delhi', 'lakshadweep', 'puducherry'
 ];
-
 const disabilities = [
     'Blindness', 'Blind','Low Vision', 'visual impairment', 'visually impaired' ,'Leprosy Cured persons', 'Hearing Impairment (deaf and hard of hearing)', 'Locomotor Disability',
     'Dwarfism', 'Intellectual Disability', 'Mental Illness', 'Autism Spectrum Disorder', 'Cerebral Palsy', 'Muscular Dystrophy',
@@ -34,13 +27,16 @@ const disabilities = [
     'Thalassemia', 'Hemophilia', 'Sickle Cell disease', 'Multiple Disabilities including deafblindness', 'Acid Attack victim',
     'Parkinson\'s disease'
 ];
-
-const client = new Client();
-
+const client = new Client({
+    webVersionCache: {
+      type: "remote",
+      remotePath:
+        "https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.2412.54.html",
+    },
+  });
 client.on('ready', () => {
     console.log('Client is ready!');
 });
-
 // Function to generate and save QR code to a file
 const generateQRCode = async qr => {
     try {
@@ -52,14 +48,12 @@ const generateQRCode = async qr => {
         console.error(err);
     }
 };
-
 client.on('qr', qr => {
     generateQRCode(qr);
 });
 const closestMatch = (str, choices) => {
     let bestMatch = choices[0];
     let bestDistance = levenshtein.distance(str, bestMatch);
-
     for (let i = 1; i < choices.length; i++) {
         const distance = levenshtein.distance(str, choices[i]);
         if (distance < bestDistance) {
@@ -67,7 +61,6 @@ const closestMatch = (str, choices) => {
             bestDistance = distance;
         }
     }
-
     return [bestMatch, 1 - bestDistance / Math.max(str.length, bestMatch.length)];
 };
 const stringifyData = data => {
@@ -77,25 +70,19 @@ const stringifyData = data => {
     }
     return result.trim(); // Trim any trailing newline characters
 };
-
 // Initialize an empty session store
 const sessionStore = new Map();
-
 client.on('message_create', async (message) => {
     try {
         // Check if the message is sent by the bot itself
         if (message.fromMe) {
             return; // Ignore messages sent by the bot
         }
-
         console.log("start");
-
         // Retrieve or initialize session data from sessionStore
         let sessionData = sessionStore.get(message.from) || { user_data: [], greeted: false };
         console.log(sessionData)
-
         const msg = message.body.toLowerCase();
-
         if (!sessionData.greeted) {
             if (msg.includes('hello') || msg.includes('hi')) {
                 sessionData.greeted = true;
@@ -122,7 +109,6 @@ client.on('message_create', async (message) => {
                 client.sendMessage(message.from, "Gender is not correct. Please give it again.");
             }
         } else if (sessionData.user_data.length === 2) {
-            
             const [disability, disabilityRating] = closestMatch(msg, disabilities);
             if (disabilityRating >= 0.6) {
                 if (disability=='Blind' || disability=='visually impaired' || disability=='visual impairment' ){
@@ -145,21 +131,17 @@ client.on('message_create', async (message) => {
             }
         } else if (sessionData.user_data.length === 4) {
             const income = parseFloat(msg);
-
             if (!isNaN(income)) {
                 sessionData.user_data.push(income);
                 try {
                     const response = await axios.post('http://0.0.0.0:8000/sms', {
                         user_details: sessionData.user_data
                     });
-
                     if (response.status !== 200) {
                         throw new Error('Network response was not ok');
                     }
-
                     let data = response.data;
                     console.log(data);
-
                     if (data) {
                         client.sendMessage(message.from , data)
                     } else {
@@ -171,35 +153,25 @@ client.on('message_create', async (message) => {
                      sessionData.user_data=[];
                     console.error('Error:', error);
                 }
-
             } else {
                 client.sendMessage(message.from, "Please provide a numerical value for your income.");
             }
-            
         }
-
         // Save updated session data back to sessionStore
         sessionStore.set(message.from, sessionData);
-        
     } catch (err) {
         console.error('Error processing data:', err);
         client.sendMessage(message.from, 'An error occurred while processing the data.');
     }
 });
-
-
 // Assuming the image is saved in the root directory
 const imagePath = path.resolve(__dirname, 'image.png');
-
 app.get('/', (req, res) => {
     // Send the QR code data to the client
     res.sendFile(imagePath);
 });
-
 client.initialize();
-
 const PORT = 5200;
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
-
 });
